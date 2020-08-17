@@ -1,70 +1,49 @@
+require('dotenv').config()
+
 const express = require('express');
 const bodyParser = require('body-parser');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const mongoose = require('mongoose');
+
+const routes = require('./routes/main');
+const passwordRoutes = require('./routes/password');
+
+//setup mongo connection
+const uri = process.env.MONGO_CONNECTION_URL;
+const mongoConfig = {
+useNewUrlParser: true,
+useCreateIndex: true,
+};
+if (process.env.MONGO_USER_NAME && process.env.MONGO_PASSWORD) {
+mongoConfig.auth = { authSorce: 'admin'};
+mongoConfig.user = process.env.MONGO_USER_NAME;
+mongoConfig.pass = process.env.MONGO_PASSWORD;
+}
+mongoose.connect(uri, mongoConfig);
+
+mongoose.connection.on('error', (error) => {
+  console.log(error);
+  process.exit(1);
+});
+
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
+
+
 
 //update express settings
 app.use(bodyParser.urlencoded({ extended: false })); //parse application/x-www-for-urlencoded
 app.use(bodyParser.json()); //parse application/json
+app.use(cookieParser());
+app.use(cors({ credentials: true, origin: process.env.CORS_ORIGIN }));
 
-app.get('/', (request, response) => {
-response.send('Hello world');
-});
+//require passport auth
+require('./auth/auth');
 
-app.get('/status', (request, response) => {
-  response.status(200).json({ message:'ok', status: 200});
-});
-
-app.post('/signup', (request, response, next) => {
-  if (!request.body) {
-response.status(400).json({message:'invalid body', status: 400});
-} else {
-  response.status(200).json({message:'ok', status: 200});
-}
-});
-
-app.get('/login', (request, response) => {
-  if (!request.body) {
-response.status(400).json({message:'invalid body', status: 400});
-} else {
-  response.status(200).json({message:'ok', status: 200});
-}
-});
-
-app.get('/logout', (request, response) => {
-  if (!request.body) {
-response.status(400).json({message:'invalid body', status: 400});
-} else {
-  response.status(200).json({message:'ok', status: 200});
-}
-});
-
-app.get('/token', (request, response) => {
-  if (!request.body || !request.body.refreshToken) {
-    response.status(400).json({message:'invalid body', status: 400});
-  } else {
-    const { refreshToken } = request.body;
-  response.status(200).json({ message:`refresh token requested for token: ${refreshToken}`, status: 200});
-}
-});
-
-app.get('/forgot-password', (request, response) => {
-  if (!request.body || !request.body.email) {
-    response.status(400).json({message:'invalid body', status: 400});
-  } else {
-    const { email } = request.body;
-  response.status(200).json({ message:`forgot password requested for email: ${email}`, status: 200});
-}
-});
-
-app.get('/reset-password', (request, response) => {
-  if (!request.body || !request.body.email) {
-    response.status(400).json({message:'invalid body', status: 400});
-  } else {
-    const { email } = request.body;
-  response.status(200).json({ message:`password reset requested for email: ${email}`, status: 200});
-}
-});
+//setup routes
+app.use('/', routes);
+app.use('/', passwordRoutes);
 
 //catch all other routes
 app.use((request, response) => {
@@ -77,6 +56,9 @@ app.use((error, request, response, next) => {
 response.status(error.status || 500).json({error: error.message, status: 500});
 });
 
-app.listen(port, () =>{
-  console.log(`server is up on port: ${port}`);
+mongoose.connection.on('connected', () => {
+  console.log('connected to mongo');
+  app.listen(port, () =>{
+    console.log(`server is up on port: ${port}`);
+  });
 });
